@@ -2,7 +2,7 @@
 
 A simple infrared transmitter for the **M5Stack Cardputer**, designed to be compiled and uploaded with the Arduino IDE.
 
-The program lets you type IR commands with the Cardputer keyboard and transmit them using its built-in IR LED on GPIO 44.
+The program lets you type IR commands with the Cardputer keyboard, or connect to the Cardputer's own WiFi access point and use a small web page, then transmit commands using its built-in IR LED on GPIO 44.
 
 ## Supported command formats
 
@@ -30,12 +30,32 @@ R 00 0C 1
 
 This is a **power toggle** command. It may turn the TV off when the TV is already on. IR codes can vary by model and firmware.
 
+## Web remote access point
+
+On boot, the Cardputer starts a direct WiFi access point:
+
+| Setting | Value |
+|---|---|
+| SSID | `Cardputer-IR` |
+| Password | `12345678` |
+| Web address | `http://192.168.4.1/` |
+
+To use it:
+
+1. Power on the Cardputer and keep it pointed at the device you want to control.
+2. Connect your phone or computer to the `Cardputer-IR` WiFi network.
+3. Open `http://192.168.4.1/` in a browser.
+4. Press a quick button or enter any supported IR command and tap **Send command**.
+
+The Cardputer keyboard still works while the web remote is running.
+
 ## Arduino IDE setup
 
 1. Install the M5Stack board package through **Boards Manager**.
 2. Install these libraries through **Library Manager**:
    - `M5Cardputer`
    - `IRremote` by Armin Joachimsmeyer
+   - `WiFi` and `WebServer` from the ESP32 board package
 3. Select the **M5Cardputer** board.
 4. Open `Cardputer_IR_Sender/Cardputer_IR_Sender.ino`.
 5. Select the correct USB port and upload.
