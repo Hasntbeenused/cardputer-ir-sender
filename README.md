@@ -2,7 +2,7 @@
 
 A simple infrared transmitter for the **M5Stack Cardputer**, designed to be compiled and uploaded with the Arduino IDE.
 
-The program lets you type IR commands with the Cardputer keyboard, or connect to the Cardputer's own WiFi access point and use a small web page, then transmit commands using its built-in IR LED on GPIO 44. The display automatically turns off after 20 seconds without keyboard input and turns back on when you press a key.
+The program lets you type IR commands with the Cardputer keyboard, or connect to the Cardputer's own WiFi access point and use a small web page, then transmit commands using its built-in IR LED on GPIO 44. The Cardputer screen and the web remote both show the current battery level. The display automatically turns off after 20 seconds without keyboard input and turns back on when you press a key.
 
 ## Supported command formats
 
@@ -47,7 +47,7 @@ To use it:
 3. Wait for your device to open or offer the captive portal page automatically. If it does not, open `http://192.168.4.1/` in a browser.
 4. Press a quick button or enter any supported IR command and tap **Send command**.
 
-The Cardputer keyboard still works while the web remote is running.
+The battery bar on the web remote is updated each time the page is loaded or refreshed. The Cardputer keyboard still works while the web remote is running.
 
 ## Arduino IDE setup
 
