@@ -522,6 +522,11 @@ bool handleKeyboardRemoteKey(const Keyboard_Class::KeysState &keys) {
       return true;
     }
 
+    if (key == 'a') {
+      sendKeyboardRemoteCommand("Ambilight", "R 00 8F 1");
+      return true;
+    }
+
     if (key == 'n') {
       sendKeyboardRemoteCommand("Netflix", "R 00 76 1");
       return true;
@@ -624,7 +629,7 @@ void sendWebPage() {
     "<a href='/send?cmd=R%2000%200C%201'>Philips Power <kbd class='shortcut'>O</kbd></a>"
     "<a href='/send?cmd=M%2020DF10EF'>NEC-MSB Power</a>"
     "</div><div class='shortcut-help'><small>Keyboard: Ctrl toggles Cardputer remote mode.</small><small>Web: shortcuts work when the command field is not focused.</small></div></div>"
-    "<div class='card'><details><summary>Main IR commands</summary><div class='command-list'>"
+    "<div class='card'><details open><summary>Main IR commands</summary><div class='command-list'>"
     "<a href='/send?cmd=R%2000%200C%201'><strong>Power toggle <kbd class='shortcut'>O</kbd></strong><span>RC6 0x00 0x0C</span></a>"
     "<a href='/send?cmd=R%2000%2010%201'><strong>Volume up <kbd class='shortcut'>+</kbd></strong><span>RC6 0x00 0x10</span></a>"
     "<a href='/send?cmd=R%2000%2011%201'><strong>Volume down <kbd class='shortcut'>-</kbd></strong><span>RC6 0x00 0x11</span></a>"
@@ -640,7 +645,7 @@ void sendWebPage() {
     "<a href='/send?cmd=R%2000%200A%201'><strong>Back <kbd class='shortcut'>B</kbd></strong><span>RC6 0x00 0x0A</span></a>"
     "<a href='/send?cmd=R%2000%2038%201'><strong>Source menu <kbd class='shortcut'>S</kbd></strong><span>RC6 0x00 0x38</span></a>"
     "<a href='/send?cmd=R%2000%20BF%201'><strong>Settings</strong><span>RC6 0x00 0xBF</span></a>"
-    "<a href='/send?cmd=R%2000%208F%201'><strong>Ambilight</strong><span>RC6 0x00 0x8F</span></a>"
+    "<a href='/send?cmd=R%2000%208F%201'><strong>Ambilight <kbd class='shortcut'>A</kbd></strong><span>RC6 0x00 0x8F</span></a>"
     "<a href='/send?cmd=R%2000%2076%201'><strong>Netflix <kbd class='shortcut'>N</kbd></strong><span>RC6 0x00 0x76</span></a>"
     "<a href='/send?cmd=R%2000%200F%201'><strong>Info <kbd class='shortcut'>I</kbd></strong><span>RC6 0x00 0x0F</span></a>"
     "<a href='/send?cmd=R%2000%202C%201'><strong>Play <kbd class='shortcut'>Space</kbd></strong><span>RC6 0x00 0x2C</span></a>"
@@ -648,7 +653,7 @@ void sendWebPage() {
     "<a href='/send?cmd=R%2000%2028%201'><strong>Fast-forward</strong><span>RC6 0x00 0x28</span></a>"
     "<a href='/send?cmd=R%2000%202B%201'><strong>Rewind</strong><span>RC6 0x00 0x2B</span></a>"
     "</div></details></div>"
-    "<script>const shortcuts={'o':'R 00 0C 1','q':'R 00 0C 1','+':'R 00 10 1','=':'R 00 10 1','-':'R 00 11 1','m':'R 00 0D 1','ArrowUp':'R 00 58 1','u':'R 00 58 1','ArrowDown':'R 00 59 1','d':'R 00 59 1','ArrowLeft':'R 00 5A 1','l':'R 00 5A 1','ArrowRight':'R 00 5B 1','r':'R 00 5B 1','Enter':'R 00 5C 1','h':'R 00 54 1','b':'R 00 0A 1','Backspace':'R 00 0A 1','s':'R 00 38 1','i':'R 00 0F 1','n':'R 00 76 1',' ':'R 00 2C 1','p':'R 00 30 1'};document.addEventListener('keydown',e=>{if(e.target.matches('input,textarea,select,button'))return;const cmd=shortcuts[e.key]||shortcuts[e.key.toLowerCase()];if(!cmd)return;e.preventDefault();location.href='/send?cmd='+encodeURIComponent(cmd);});</script>"
+    "<script>const shortcuts={'o':'R 00 0C 1','q':'R 00 0C 1','+':'R 00 10 1','=':'R 00 10 1','-':'R 00 11 1','m':'R 00 0D 1','ArrowUp':'R 00 58 1','u':'R 00 58 1','ArrowDown':'R 00 59 1','d':'R 00 59 1','ArrowLeft':'R 00 5A 1','l':'R 00 5A 1','ArrowRight':'R 00 5B 1','r':'R 00 5B 1','Enter':'R 00 5C 1','h':'R 00 54 1','b':'R 00 0A 1','Backspace':'R 00 0A 1','s':'R 00 38 1','i':'R 00 0F 1','a':'R 00 8F 1','n':'R 00 76 1',' ':'R 00 2C 1','p':'R 00 30 1'};document.addEventListener('keydown',e=>{if(e.target.matches('input,textarea,select,button'))return;const cmd=shortcuts[e.key]||shortcuts[e.key.toLowerCase()];if(!cmd)return;e.preventDefault();location.href='/send?cmd='+encodeURIComponent(cmd);});</script>"
     "</main></body></html>";
 
   server.send(200, "text/html", page);
