@@ -34,6 +34,7 @@
 #include <IRremote.hpp>
 #include <WiFi.h>
 #include <WebServer.h>
+#include <DNSServer.h>
 
 String inputLine = "";
 String statusLine = "Ready";
@@ -43,6 +44,14 @@ const char *AP_SSID = "Cardputer-IR";
 const char *AP_PASSWORD = "12345678";
 
 WebServer server(80);
+DNSServer dnsServer;
+
+const byte DNS_PORT = 53;
+const uint32_t SCREEN_TIMEOUT_MS = 20000;
+const uint8_t SCREEN_BRIGHTNESS = 100;
+
+unsigned long lastKeyboardInputMillis = 0;
+bool screenIsOn = true;
 
 String shortenText(const String &text, size_t maximumLength) {
   if (text.length() <= maximumLength) {
@@ -52,7 +61,22 @@ String shortenText(const String &text, size_t maximumLength) {
   return "..." + text.substring(text.length() - maximumLength + 3);
 }
 
+void turnScreenOn() {
+  if (!screenIsOn) {
+    M5Cardputer.Display.setBrightness(SCREEN_BRIGHTNESS);
+    screenIsOn = true;
+  }
+}
+
+void updateScreenTimeout() {
+  if (screenIsOn && millis() - lastKeyboardInputMillis >= SCREEN_TIMEOUT_MS) {
+    M5Cardputer.Display.setBrightness(0);
+    screenIsOn = false;
+  }
+}
+
 void drawScreen() {
+  turnScreenOn();
   auto &display = M5Cardputer.Display;
 
   display.fillScreen(BLACK);
@@ -370,6 +394,11 @@ String htmlEscape(const String &text) {
   return escaped;
 }
 
+void redirectToWebRemote() {
+  server.sendHeader("Location", String("http://") + WiFi.softAPIP().toString() + "/", true);
+  server.send(302, "text/plain", "Redirecting to Cardputer IR Remote");
+}
+
 void sendWebPage() {
   String escapedStatus = htmlEscape(statusLine);
   String statusClass = statusIsError ? "error" : "ok";
@@ -461,9 +490,18 @@ void handleSendRequest() {
 void setupWebRemote() {
   WiFi.mode(WIFI_AP);
   WiFi.softAP(AP_SSID, AP_PASSWORD);
+  dnsServer.start(DNS_PORT, "*", WiFi.softAPIP());
 
   server.on("/", HTTP_GET, sendWebPage);
+  server.on("/generate_204", HTTP_GET, redirectToWebRemote);
+  server.on("/gen_204", HTTP_GET, redirectToWebRemote);
+  server.on("/hotspot-detect.html", HTTP_GET, redirectToWebRemote);
+  server.on("/library/test/success.html", HTTP_GET, redirectToWebRemote);
+  server.on("/ncsi.txt", HTTP_GET, redirectToWebRemote);
+  server.on("/connecttest.txt", HTTP_GET, redirectToWebRemote);
+  server.on("/redirect", HTTP_GET, redirectToWebRemote);
   server.on("/send", HTTP_GET, handleSendRequest);
+  server.onNotFound(redirectToWebRemote);
   server.begin();
 
   Serial.print("Web remote AP: ");
@@ -479,7 +517,8 @@ void setup() {
   Serial.begin(115200);
 
   M5Cardputer.Display.setRotation(1);
-  M5Cardputer.Display.setBrightness(100);
+  M5Cardputer.Display.setBrightness(SCREEN_BRIGHTNESS);
+  lastKeyboardInputMillis = millis();
 
   IrSender.begin(DISABLE_LED_FEEDBACK);
   IrSender.setSendPin(IR_TX_PIN);
@@ -495,9 +534,13 @@ void setup() {
 
 void loop() {
   M5Cardputer.update();
+  dnsServer.processNextRequest();
   server.handleClient();
+  updateScreenTimeout();
 
   if (M5Cardputer.Keyboard.isChange() && M5Cardputer.Keyboard.isPressed()) {
+    lastKeyboardInputMillis = millis();
+    turnScreenOn();
     Keyboard_Class::KeysState keys = M5Cardputer.Keyboard.keysState();
 
     for (char character : keys.word) {
