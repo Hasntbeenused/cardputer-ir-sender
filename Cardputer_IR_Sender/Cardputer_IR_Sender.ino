@@ -32,10 +32,17 @@
 
 #include <M5Cardputer.h>
 #include <IRremote.hpp>
+#include <WiFi.h>
+#include <WebServer.h>
 
 String inputLine = "";
 String statusLine = "Ready";
 bool statusIsError = false;
+
+const char *AP_SSID = "Cardputer-IR";
+const char *AP_PASSWORD = "12345678";
+
+WebServer server(80);
 
 String shortenText(const String &text, size_t maximumLength) {
   if (text.length() <= maximumLength) {
@@ -69,8 +76,12 @@ void drawScreen() {
   display.setCursor(4, 56);
   display.println("Philips power: R 00 0C 1");
 
+  display.setTextColor(MAGENTA, BLACK);
+  display.setCursor(4, 66);
+  display.println("WiFi: Cardputer-IR / 12345678");
+
   display.setTextColor(statusIsError ? RED : GREEN, BLACK);
-  display.setCursor(4, 76);
+  display.setCursor(4, 80);
   display.print(shortenText(statusLine, 38));
 
   display.drawFastHLine(0, 96, display.width(), DARKGREY);
@@ -337,6 +348,102 @@ void processCommand(String commandLine) {
   }
 }
 
+String htmlEscape(const String &text) {
+  String escaped = "";
+
+  for (size_t i = 0; i < text.length(); i++) {
+    char character = text.charAt(i);
+
+    if (character == '&') {
+      escaped += "&amp;";
+    } else if (character == '<') {
+      escaped += "&lt;";
+    } else if (character == '>') {
+      escaped += "&gt;";
+    } else if (character == '"') {
+      escaped += "&quot;";
+    } else {
+      escaped += character;
+    }
+  }
+
+  return escaped;
+}
+
+void sendWebPage() {
+  String escapedStatus = htmlEscape(statusLine);
+  String statusClass = statusIsError ? "error" : "ok";
+  String page =
+    "<!doctype html><html><head>"
+    "<meta name='viewport' content='width=device-width,initial-scale=1'>"
+    "<title>Cardputer IR Remote</title>"
+    "<style>"
+    "body{font-family:system-ui,Arial,sans-serif;margin:0;background:#111;color:#eee;}"
+    "main{max-width:520px;margin:auto;padding:18px;}"
+    "h1{font-size:1.5rem;margin:0 0 12px;}"
+    ".card{background:#1d1d1d;border-radius:14px;padding:14px;margin:12px 0;}"
+    ".status{font-weight:700}.ok{color:#63d471}.error{color:#ff6b6b}"
+    "form{display:grid;gap:10px}"
+    "input,button{font:inherit;border-radius:10px;border:0;padding:12px;}"
+    "input{background:#2b2b2b;color:#fff;}"
+    "button{background:#00a6ff;color:#fff;font-weight:700;}"
+    ".buttons{display:grid;grid-template-columns:1fr 1fr;gap:10px;}"
+    ".buttons a{background:#333;color:#fff;text-align:center;text-decoration:none;border-radius:10px;padding:12px;}"
+    "small{color:#aaa;}"
+    "</style></head><body><main>"
+    "<h1>Cardputer IR Remote</h1>"
+    "<div class='card status ";
+
+  page += statusClass;
+  page += "'>Status: ";
+  page += escapedStatus;
+  page +=
+    "</div>"
+    "<div class='card'><form action='/send' method='get'>"
+    "<label for='cmd'>IR command</label>"
+    "<input id='cmd' name='cmd' value='R 00 0C 1' autocomplete='off'>"
+    "<button type='submit'>Send command</button>"
+    "<small>Formats: N &lt;address&gt; &lt;command&gt; [repeats], "
+    "R &lt;address&gt; &lt;command&gt; [repeats], M &lt;32-bit-code&gt; [repeats]</small>"
+    "</form></div>"
+    "<div class='card'><h2>Quick buttons</h2><div class='buttons'>"
+    "<a href='/send?cmd=R%2000%200C%201'>Philips Power</a>"
+    "<a href='/send?cmd=M%2020DF10EF'>NEC-MSB Power</a>"
+    "</div></div>"
+    "</main></body></html>";
+
+  server.send(200, "text/html", page);
+}
+
+void handleSendRequest() {
+  if (!server.hasArg("cmd")) {
+    statusLine = "Web: missing cmd";
+    statusIsError = true;
+    drawScreen();
+    sendWebPage();
+    return;
+  }
+
+  String command = server.arg("cmd");
+  processCommand(command);
+  drawScreen();
+  sendWebPage();
+}
+
+void setupWebRemote() {
+  WiFi.mode(WIFI_AP);
+  WiFi.softAP(AP_SSID, AP_PASSWORD);
+
+  server.on("/", HTTP_GET, sendWebPage);
+  server.on("/send", HTTP_GET, handleSendRequest);
+  server.begin();
+
+  Serial.print("Web remote AP: ");
+  Serial.println(AP_SSID);
+  Serial.print("Open http://");
+  Serial.println(WiFi.softAPIP());
+}
+
 void setup() {
   auto config = M5.config();
 
@@ -348,16 +455,19 @@ void setup() {
 
   IrSender.begin(DISABLE_LED_FEEDBACK);
   IrSender.setSendPin(IR_TX_PIN);
+  setupWebRemote();
 
   drawScreen();
 
   Serial.println();
   Serial.println("Cardputer IR Sender ready");
   Serial.println("Philips power: R 00 0C 1");
+  Serial.println("Connect to WiFi Cardputer-IR with password 12345678");
 }
 
 void loop() {
   M5Cardputer.update();
+  server.handleClient();
 
   if (M5Cardputer.Keyboard.isChange() && M5Cardputer.Keyboard.isPressed()) {
     Keyboard_Class::KeysState keys = M5Cardputer.Keyboard.keysState();
