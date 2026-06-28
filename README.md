@@ -47,7 +47,7 @@ To use it:
 3. Wait for your device to open or offer the captive portal page automatically. If it does not, open `http://192.168.4.1/` in a browser.
 4. Press a quick button, use one of the keyboard shortcuts shown beside the web buttons, or enter any supported IR command and tap **Send command**.
 
-The battery bar on the web remote is updated each time the page is loaded or refreshed. The Cardputer keyboard still works while the web remote is running.
+The battery bar on the web remote is updated each time the page is loaded or refreshed. The web remote remembers your scroll position when you send commands or refresh the page, so it does not jump back to the top after each action. The Cardputer keyboard still works while the web remote is running.
 
 ## Arduino IDE setup
 
