@@ -53,6 +53,60 @@ const uint8_t SCREEN_BRIGHTNESS = 100;
 unsigned long lastKeyboardInputMillis = 0;
 bool screenIsOn = true;
 
+
+int getBatteryLevelPercent() {
+  int level = M5Cardputer.Power.getBatteryLevel();
+
+  if (level < 0) {
+    return 0;
+  }
+
+  if (level > 100) {
+    return 100;
+  }
+
+  return level;
+}
+
+String getBatteryLevelText() {
+  return String(getBatteryLevelPercent()) + "%";
+}
+
+String getBatteryBarClass(int batteryLevel) {
+  if (batteryLevel <= 20) {
+    return "low";
+  }
+
+  if (batteryLevel <= 50) {
+    return "medium";
+  }
+
+  return "high";
+}
+
+void drawBatteryBar(int batteryLevel) {
+  auto &display = M5Cardputer.Display;
+  const int outerX = display.width() - 48;
+  const int outerY = 3;
+  const int outerWidth = 34;
+  const int outerHeight = 12;
+  const int fillWidth = map(batteryLevel, 0, 100, 0, outerWidth - 4);
+  uint16_t fillColor = batteryLevel <= 20 ? RED : (batteryLevel <= 50 ? YELLOW : GREEN);
+
+  display.drawRect(outerX, outerY, outerWidth, outerHeight, WHITE);
+  display.fillRect(outerX + outerWidth, outerY + 3, 3, 6, WHITE);
+  display.fillRect(outerX + 2, outerY + 2, outerWidth - 4, outerHeight - 4, BLACK);
+
+  if (fillWidth > 0) {
+    display.fillRect(outerX + 2, outerY + 2, fillWidth, outerHeight - 4, fillColor);
+  }
+
+  display.setTextColor(WHITE, BLACK);
+  display.setCursor(outerX - 24, 6);
+  display.printf("%3d", batteryLevel);
+  display.print("%");
+}
+
 String shortenText(const String &text, size_t maximumLength) {
   if (text.length() <= maximumLength) {
     return text;
@@ -84,9 +138,12 @@ void drawScreen() {
   display.setTextSize(1);
   display.setTextWrap(false);
 
+  int batteryLevel = getBatteryLevelPercent();
+
   display.setTextColor(CYAN, BLACK);
   display.setCursor(4, 3);
   display.println("CARDPUTER IR SENDER");
+  drawBatteryBar(batteryLevel);
 
   display.setTextColor(WHITE, BLACK);
   display.setCursor(4, 18);
@@ -400,8 +457,10 @@ void redirectToWebRemote() {
 }
 
 void sendWebPage() {
+  int batteryLevel = getBatteryLevelPercent();
   String escapedStatus = htmlEscape(statusLine);
   String statusClass = statusIsError ? "error" : "ok";
+  String batteryClass = getBatteryBarClass(batteryLevel);
   String page =
     "<!doctype html><html><head>"
     "<meta name='viewport' content='width=device-width,initial-scale=1'>"
@@ -409,7 +468,13 @@ void sendWebPage() {
     "<style>"
     "body{font-family:system-ui,Arial,sans-serif;margin:0;background:#111;color:#eee;}"
     "main{max-width:520px;margin:auto;padding:18px;}"
-    "h1{font-size:1.5rem;margin:0 0 12px;}"
+    ".topbar{display:flex;align-items:center;justify-content:space-between;gap:12px;margin:0 0 12px;}"
+    "h1{font-size:1.5rem;margin:0;}"
+    ".battery{display:flex;align-items:center;gap:8px;color:#ddd;font-weight:700;}"
+    ".battery-shell{position:relative;width:52px;height:22px;border:2px solid #ddd;border-radius:5px;padding:2px;}"
+    ".battery-shell:after{content:'';position:absolute;right:-7px;top:6px;width:5px;height:8px;background:#ddd;border-radius:0 3px 3px 0;}"
+    ".battery-fill{height:100%;border-radius:2px;background:#63d471;}"
+    ".battery-fill.medium{background:#f6c453}.battery-fill.low{background:#ff6b6b}"
     ".card{background:#1d1d1d;border-radius:14px;padding:14px;margin:12px 0;}"
     ".status{font-weight:700}.ok{color:#63d471}.error{color:#ff6b6b}"
     "form{display:grid;gap:10px}"
@@ -424,9 +489,16 @@ void sendWebPage() {
     ".command-list span{color:#aaa;font-family:ui-monospace,SFMono-Regular,Consolas,monospace;font-size:.9rem;}"
     "small{color:#aaa;}"
     "</style></head><body><main>"
-    "<h1>Cardputer IR Remote</h1>"
-    "<div class='card status ";
+    "<div class='topbar'><h1>Cardputer IR Remote</h1>"
+    "<div class='battery' aria-label='Battery level'><div class='battery-shell'><div class='battery-fill ";
 
+  page += batteryClass;
+  page += "' style='width:";
+  page += String(batteryLevel);
+  page += "%'></div></div><span>";
+  page += getBatteryLevelText();
+  page += "</span></div></div>";
+  page += "<div class='card status ";
   page += statusClass;
   page += "'>Status: ";
   page += escapedStatus;
