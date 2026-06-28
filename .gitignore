@@ -1,0 +1,20 @@
+# Arduino build output
+build/
+*.hex
+*.bin
+*.elf
+*.map
+*.eep
+*.o
+*.a
+
+# Arduino IDE local files
+*.autosave
+*.ino.standard.hex
+*.ino.with_bootloader.standard.hex
+
+# Editor and OS files
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db
