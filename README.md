@@ -51,14 +51,22 @@ The battery bar on the web remote is updated each time the page is loaded or ref
 
 ## Arduino IDE setup
 
-1. Install the M5Stack board package through **Boards Manager**.
-2. Install these libraries through **Library Manager**:
-   - `M5Cardputer`
+1. Install or update the M5Stack board package through **Boards Manager**. Use M5Stack board manager version `3.2.2` or newer.
+2. Install or update these libraries through **Library Manager**:
+   - `M5Cardputer` version `1.1.0` or newer
+   - `M5Unified` version `0.2.8` or newer
+   - `M5GFX` version `0.2.10` or newer
    - `IRremote` by Armin Joachimsmeyer
    - `WiFi`, `WebServer`, and `DNSServer` from the ESP32 board package
 3. Select the **M5Cardputer** board.
 4. Open `Cardputer_IR_Sender/Cardputer_IR_Sender.ino`.
 5. Select the correct USB port and upload.
+
+## Troubleshooting compile errors
+
+If the Arduino IDE reports `'M5Stack' does not name a type` on a line that says `M5Stack Cardputer - Interactive IR Sender`, the sketch was copied without the opening `/*` comment marker. Open the checked-in `Cardputer_IR_Sender/Cardputer_IR_Sender.ino` file directly, or make sure the title block starts with `/*` and ends with `*/`.
+
+If compilation fails inside the M5Cardputer keyboard headers with errors such as `'Point2D_t' was not declared in this scope`, update the M5Stack board package and the `M5Cardputer`, `M5Unified`, and `M5GFX` libraries to the minimum versions listed above. This sketch includes `M5GFX.h` before `M5Cardputer.h` so the display and keyboard types are available to the Cardputer library.
 
 ## Controls
 
