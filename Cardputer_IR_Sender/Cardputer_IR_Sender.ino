@@ -53,6 +53,7 @@ const uint8_t SCREEN_BRIGHTNESS = 100;
 
 unsigned long lastKeyboardInputMillis = 0;
 bool screenIsOn = true;
+bool keyboardRemoteMode = false;
 
 
 int getBatteryLevelPercent() {
@@ -162,14 +163,18 @@ void drawScreen() {
   display.setCursor(4, 66);
   display.println("WiFi: Cardputer-IR / 12345678");
 
+  display.setTextColor(keyboardRemoteMode ? ORANGE : DARKGREY, BLACK);
+  display.setCursor(4, 92);
+  display.println(keyboardRemoteMode ? "REMOTE: Ctrl exit, arrows/Enter, +/-" : "Ctrl = keyboard remote mode");
+
   display.setTextColor(statusIsError ? RED : GREEN, BLACK);
   display.setCursor(4, 80);
   display.print(shortenText(statusLine, 38));
 
-  display.drawFastHLine(0, 96, display.width(), DARKGREY);
+  display.drawFastHLine(0, 102, display.width(), DARKGREY);
 
   display.setTextColor(WHITE, BLACK);
-  display.setCursor(4, 106);
+  display.setCursor(4, 110);
   display.print("> ");
 
   display.setTextColor(YELLOW, BLACK);
@@ -430,6 +435,107 @@ void processCommand(String commandLine) {
   }
 }
 
+void sendKeyboardRemoteCommand(const char *label, const char *command) {
+  processCommand(String(command));
+
+  if (!statusIsError) {
+    statusLine = String("Remote ") + label;
+  }
+}
+
+bool handleKeyboardRemoteKey(const Keyboard_Class::KeysState &keys) {
+  if (keys.enter) {
+    sendKeyboardRemoteCommand("OK", "R 00 5C 1");
+    return true;
+  }
+
+  if (keys.del) {
+    sendKeyboardRemoteCommand("Back", "R 00 0A 1");
+    return true;
+  }
+
+  for (char character : keys.word) {
+    char key = tolower(character);
+
+    if (key == 'p') {
+      sendKeyboardRemoteCommand("Pause", "R 00 30 1");
+      return true;
+    }
+
+    if (key == ' ') {
+      sendKeyboardRemoteCommand("Play", "R 00 2C 1");
+      return true;
+    }
+
+    if (key == '+' || key == '=') {
+      sendKeyboardRemoteCommand("Volume up", "R 00 10 1");
+      return true;
+    }
+
+    if (key == '-' || key == '_') {
+      sendKeyboardRemoteCommand("Volume down", "R 00 11 1");
+      return true;
+    }
+
+    if (key == 'm') {
+      sendKeyboardRemoteCommand("Mute", "R 00 0D 1");
+      return true;
+    }
+
+    if (key == 'u' || key == '/') {
+      sendKeyboardRemoteCommand("Up", "R 00 58 1");
+      return true;
+    }
+
+    if (key == 'd' || key == ',') {
+      sendKeyboardRemoteCommand("Down", "R 00 59 1");
+      return true;
+    }
+
+    if (key == 'l' || key == ';') {
+      sendKeyboardRemoteCommand("Left", "R 00 5A 1");
+      return true;
+    }
+
+    if (key == 'r' || key == '.') {
+      sendKeyboardRemoteCommand("Right", "R 00 5B 1");
+      return true;
+    }
+
+    if (key == 'h') {
+      sendKeyboardRemoteCommand("Home", "R 00 54 1");
+      return true;
+    }
+
+    if (key == 'b') {
+      sendKeyboardRemoteCommand("Back", "R 00 0A 1");
+      return true;
+    }
+
+    if (key == 's') {
+      sendKeyboardRemoteCommand("Source", "R 00 38 1");
+      return true;
+    }
+
+    if (key == 'i') {
+      sendKeyboardRemoteCommand("Info", "R 00 0F 1");
+      return true;
+    }
+
+    if (key == 'n') {
+      sendKeyboardRemoteCommand("Netflix", "R 00 76 1");
+      return true;
+    }
+
+    if (key == 'o' || key == 'q') {
+      sendKeyboardRemoteCommand("Power", "R 00 0C 1");
+      return true;
+    }
+  }
+
+  return false;
+}
+
 String htmlEscape(const String &text) {
   String escaped = "";
 
@@ -488,6 +594,8 @@ void sendWebPage() {
     ".command-list{display:grid;gap:8px;margin-top:12px;}"
     ".command-list a{display:grid;grid-template-columns:1fr auto;gap:8px;align-items:center;background:#2b2b2b;color:#fff;text-decoration:none;border-radius:10px;padding:10px;}"
     ".command-list span{color:#aaa;font-family:ui-monospace,SFMono-Regular,Consolas,monospace;font-size:.9rem;}"
+    ".shortcut{display:inline-block;margin-left:6px;padding:2px 7px;border:1px solid #666;border-radius:6px;background:#111;color:#ddd;font-family:ui-monospace,SFMono-Regular,Consolas,monospace;font-size:.8rem;}"
+    ".shortcut-help{display:grid;grid-template-columns:repeat(auto-fit,minmax(130px,1fr));gap:6px;margin-top:10px;color:#ccc;}"
     "small{color:#aaa;}"
     "</style></head><body><main>"
     "<div class='topbar'><h1>Cardputer IR Remote</h1>"
@@ -513,33 +621,34 @@ void sendWebPage() {
     "R &lt;address&gt; &lt;command&gt; [repeats], M &lt;32-bit-code&gt; [repeats]</small>"
     "</form></div>"
     "<div class='card'><h2>Quick buttons</h2><div class='buttons'>"
-    "<a href='/send?cmd=R%2000%200C%201'>Philips Power</a>"
+    "<a href='/send?cmd=R%2000%200C%201'>Philips Power <kbd class='shortcut'>O</kbd></a>"
     "<a href='/send?cmd=M%2020DF10EF'>NEC-MSB Power</a>"
-    "</div></div>"
+    "</div><div class='shortcut-help'><small>Keyboard: Ctrl toggles Cardputer remote mode.</small><small>Web: shortcuts work when the command field is not focused.</small></div></div>"
     "<div class='card'><details><summary>Main IR commands</summary><div class='command-list'>"
-    "<a href='/send?cmd=R%2000%200C%201'><strong>Power toggle</strong><span>RC6 0x00 0x0C</span></a>"
-    "<a href='/send?cmd=R%2000%2010%201'><strong>Volume up</strong><span>RC6 0x00 0x10</span></a>"
-    "<a href='/send?cmd=R%2000%2011%201'><strong>Volume down</strong><span>RC6 0x00 0x11</span></a>"
-    "<a href='/send?cmd=R%2000%200D%201'><strong>Mute</strong><span>RC6 0x00 0x0D</span></a>"
+    "<a href='/send?cmd=R%2000%200C%201'><strong>Power toggle <kbd class='shortcut'>O</kbd></strong><span>RC6 0x00 0x0C</span></a>"
+    "<a href='/send?cmd=R%2000%2010%201'><strong>Volume up <kbd class='shortcut'>+</kbd></strong><span>RC6 0x00 0x10</span></a>"
+    "<a href='/send?cmd=R%2000%2011%201'><strong>Volume down <kbd class='shortcut'>-</kbd></strong><span>RC6 0x00 0x11</span></a>"
+    "<a href='/send?cmd=R%2000%200D%201'><strong>Mute <kbd class='shortcut'>M</kbd></strong><span>RC6 0x00 0x0D</span></a>"
     "<a href='/send?cmd=R%2000%2020%201'><strong>Channel up</strong><span>RC6 0x00 0x20</span></a>"
     "<a href='/send?cmd=R%2000%2021%201'><strong>Channel down</strong><span>RC6 0x00 0x21</span></a>"
-    "<a href='/send?cmd=R%2000%2058%201'><strong>Up</strong><span>RC6 0x00 0x58</span></a>"
-    "<a href='/send?cmd=R%2000%2059%201'><strong>Down</strong><span>RC6 0x00 0x59</span></a>"
-    "<a href='/send?cmd=R%2000%205A%201'><strong>Left</strong><span>RC6 0x00 0x5A</span></a>"
-    "<a href='/send?cmd=R%2000%205B%201'><strong>Right</strong><span>RC6 0x00 0x5B</span></a>"
-    "<a href='/send?cmd=R%2000%205C%201'><strong>OK</strong><span>RC6 0x00 0x5C</span></a>"
-    "<a href='/send?cmd=R%2000%2054%201'><strong>Home</strong><span>RC6 0x00 0x54</span></a>"
-    "<a href='/send?cmd=R%2000%200A%201'><strong>Back</strong><span>RC6 0x00 0x0A</span></a>"
-    "<a href='/send?cmd=R%2000%2038%201'><strong>Source menu</strong><span>RC6 0x00 0x38</span></a>"
+    "<a href='/send?cmd=R%2000%2058%201'><strong>Up <kbd class='shortcut'>↑</kbd>/<kbd class='shortcut'>U</kbd></strong><span>RC6 0x00 0x58</span></a>"
+    "<a href='/send?cmd=R%2000%2059%201'><strong>Down <kbd class='shortcut'>↓</kbd>/<kbd class='shortcut'>D</kbd></strong><span>RC6 0x00 0x59</span></a>"
+    "<a href='/send?cmd=R%2000%205A%201'><strong>Left <kbd class='shortcut'>←</kbd>/<kbd class='shortcut'>L</kbd></strong><span>RC6 0x00 0x5A</span></a>"
+    "<a href='/send?cmd=R%2000%205B%201'><strong>Right <kbd class='shortcut'>→</kbd>/<kbd class='shortcut'>R</kbd></strong><span>RC6 0x00 0x5B</span></a>"
+    "<a href='/send?cmd=R%2000%205C%201'><strong>OK <kbd class='shortcut'>Enter</kbd></strong><span>RC6 0x00 0x5C</span></a>"
+    "<a href='/send?cmd=R%2000%2054%201'><strong>Home <kbd class='shortcut'>H</kbd></strong><span>RC6 0x00 0x54</span></a>"
+    "<a href='/send?cmd=R%2000%200A%201'><strong>Back <kbd class='shortcut'>B</kbd></strong><span>RC6 0x00 0x0A</span></a>"
+    "<a href='/send?cmd=R%2000%2038%201'><strong>Source menu <kbd class='shortcut'>S</kbd></strong><span>RC6 0x00 0x38</span></a>"
     "<a href='/send?cmd=R%2000%20BF%201'><strong>Settings</strong><span>RC6 0x00 0xBF</span></a>"
     "<a href='/send?cmd=R%2000%208F%201'><strong>Ambilight</strong><span>RC6 0x00 0x8F</span></a>"
-    "<a href='/send?cmd=R%2000%2076%201'><strong>Netflix</strong><span>RC6 0x00 0x76</span></a>"
-    "<a href='/send?cmd=R%2000%200F%201'><strong>Info</strong><span>RC6 0x00 0x0F</span></a>"
-    "<a href='/send?cmd=R%2000%202C%201'><strong>Play</strong><span>RC6 0x00 0x2C</span></a>"
-    "<a href='/send?cmd=R%2000%2030%201'><strong>Pause</strong><span>RC6 0x00 0x30</span></a>"
+    "<a href='/send?cmd=R%2000%2076%201'><strong>Netflix <kbd class='shortcut'>N</kbd></strong><span>RC6 0x00 0x76</span></a>"
+    "<a href='/send?cmd=R%2000%200F%201'><strong>Info <kbd class='shortcut'>I</kbd></strong><span>RC6 0x00 0x0F</span></a>"
+    "<a href='/send?cmd=R%2000%202C%201'><strong>Play <kbd class='shortcut'>Space</kbd></strong><span>RC6 0x00 0x2C</span></a>"
+    "<a href='/send?cmd=R%2000%2030%201'><strong>Pause <kbd class='shortcut'>P</kbd></strong><span>RC6 0x00 0x30</span></a>"
     "<a href='/send?cmd=R%2000%2028%201'><strong>Fast-forward</strong><span>RC6 0x00 0x28</span></a>"
     "<a href='/send?cmd=R%2000%202B%201'><strong>Rewind</strong><span>RC6 0x00 0x2B</span></a>"
     "</div></details></div>"
+    "<script>const shortcuts={'o':'R 00 0C 1','q':'R 00 0C 1','+':'R 00 10 1','=':'R 00 10 1','-':'R 00 11 1','m':'R 00 0D 1','ArrowUp':'R 00 58 1','u':'R 00 58 1','ArrowDown':'R 00 59 1','d':'R 00 59 1','ArrowLeft':'R 00 5A 1','l':'R 00 5A 1','ArrowRight':'R 00 5B 1','r':'R 00 5B 1','Enter':'R 00 5C 1','h':'R 00 54 1','b':'R 00 0A 1','Backspace':'R 00 0A 1','s':'R 00 38 1','i':'R 00 0F 1','n':'R 00 76 1',' ':'R 00 2C 1','p':'R 00 30 1'};document.addEventListener('keydown',e=>{if(e.target.matches('input,textarea,select,button'))return;const cmd=shortcuts[e.key]||shortcuts[e.key.toLowerCase()];if(!cmd)return;e.preventDefault();location.href='/send?cmd='+encodeURIComponent(cmd);});</script>"
     "</main></body></html>";
 
   server.send(200, "text/html", page);
@@ -615,6 +724,20 @@ void loop() {
     lastKeyboardInputMillis = millis();
     turnScreenOn();
     Keyboard_Class::KeysState keys = M5Cardputer.Keyboard.keysState();
+
+    if (keys.ctrl) {
+      keyboardRemoteMode = !keyboardRemoteMode;
+      statusLine = keyboardRemoteMode ? "Keyboard remote mode" : "Command entry mode";
+      statusIsError = false;
+      drawScreen();
+      return;
+    }
+
+    if (keyboardRemoteMode) {
+      handleKeyboardRemoteKey(keys);
+      drawScreen();
+      return;
+    }
 
     for (char character : keys.word) {
       if (inputLine.length() < 48) {

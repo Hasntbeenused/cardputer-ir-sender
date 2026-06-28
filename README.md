@@ -2,7 +2,7 @@
 
 A simple infrared transmitter for the **M5Stack Cardputer**, designed to be compiled and uploaded with the Arduino IDE.
 
-The program lets you type IR commands with the Cardputer keyboard, or connect to the Cardputer's own WiFi access point and use a small web page, then transmit commands using its built-in IR LED on GPIO 44. The Cardputer screen and the web remote both show the current battery level. The display automatically turns off after 20 seconds without keyboard input and turns back on when you press a key.
+The program lets you type IR commands with the Cardputer keyboard, switch the Cardputer keyboard into a TV-style remote mode, or connect to the Cardputer's own WiFi access point and use a small web page, then transmit commands using its built-in IR LED on GPIO 44. The Cardputer screen and the web remote both show the current battery level. The display automatically turns off after 20 seconds without keyboard input and turns back on when you press a key.
 
 ## Supported command formats
 
@@ -45,7 +45,7 @@ To use it:
 1. Power on the Cardputer and keep it pointed at the device you want to control.
 2. Connect your phone or computer to the `Cardputer-IR` WiFi network.
 3. Wait for your device to open or offer the captive portal page automatically. If it does not, open `http://192.168.4.1/` in a browser.
-4. Press a quick button or enter any supported IR command and tap **Send command**.
+4. Press a quick button, use one of the keyboard shortcuts shown beside the web buttons, or enter any supported IR command and tap **Send command**.
 
 The battery bar on the web remote is updated each time the page is loaded or refreshed. The Cardputer keyboard still works while the web remote is running.
 
@@ -73,6 +73,9 @@ If compilation fails inside the M5Cardputer keyboard headers with errors such as
 - Type a command using the built-in keyboard.
 - Press **Backspace** to remove a character.
 - Press **Enter** to transmit.
+- Press **Ctrl** to toggle keyboard remote mode on the Cardputer. In remote mode, keys send common Philips RC6 remote commands immediately instead of editing the command line.
+- Remote mode shortcuts: **P** = pause, **Space** = play, **+**/**-** = volume up/down, **arrow-labeled keys** (`/`, `,`, `;`, `.`) or **U/D/L/R** = up/down/left/right, **Enter** = OK, **Backspace** or **B** = back, **M** = mute, **H** = home, **S** = source, **I** = info, **N** = Netflix, and **O** or **Q** = power.
+- The web remote shows matching keyboard shortcut badges next to supported buttons and sends those commands when the command field is not focused.
 - Point the top of the Cardputer toward the device's IR receiver.
 - Leave the keyboard idle for 20 seconds to turn the screen off automatically; press any key to wake it.
 
