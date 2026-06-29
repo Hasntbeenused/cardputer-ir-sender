@@ -46,6 +46,18 @@ To use it:
 2. Connect your phone or computer to the `Cardputer-IR` WiFi network.
 3. Wait for your device to open or offer the captive portal page automatically. If it does not, open `http://192.168.4.1/` in a browser.
 4. Press a quick button, use one of the keyboard shortcuts shown beside the web buttons, or enter any supported IR command and tap **Send command**.
+5. To replace the default remote buttons, paste a semicolon-separated command list into **Custom semicolon command list** and tap **Replace keyboard/buttons**.
+
+Custom list rows use this format:
+
+```text
+IR command;keyboard letter;description;repeats
+R 00 0C;O;Power toggle;1
+R 00 10;+;Volume up;1
+M 20DF10EF;P;NEC-MSB power;
+```
+
+The repeats column is optional. If it is present, it is appended to commands that do not already include a repeat value. Compact commands such as `m00F700FF` are accepted and normalized as `M 00F700FF`. Web shortcuts can be single keys such as `o`, `+`, or `-`, or modifier combinations such as `Alt+1`, `Ctrl+R`, and `Shift+B`. Once a custom list is loaded, the web keyboard shortcuts use the custom shortcuts instead of the built-in default shortcuts, single-key custom shortcuts also work in Cardputer keyboard remote mode, and the web page shows the list as an extra dropdown menu of buttons.
 
 The battery bar on the web remote is updated each time the page is loaded or refreshed. The web remote remembers your scroll position when you send commands or refresh the page, so it does not jump back to the top after each action. The Cardputer keyboard still works while the web remote is running.
 
