@@ -55,6 +55,19 @@ unsigned long lastKeyboardInputMillis = 0;
 bool screenIsOn = true;
 bool keyboardRemoteMode = false;
 
+const uint8_t MAX_CUSTOM_COMMANDS = 24;
+
+struct CustomCommand {
+  String command;
+  String shortcut;
+  String description;
+};
+
+CustomCommand customCommands[MAX_CUSTOM_COMMANDS];
+uint8_t customCommandCount = 0;
+String customCommandCsv = "";
+
+bool sendCustomShortcut(char key);
 
 int getBatteryLevelPercent() {
   int level = M5Cardputer.Power.getBatteryLevel();
@@ -457,6 +470,10 @@ bool handleKeyboardRemoteKey(const Keyboard_Class::KeysState &keys) {
   for (char character : keys.word) {
     char key = tolower(character);
 
+    if (customCommandCount > 0) {
+      return sendCustomShortcut(key);
+    }
+
     if (key == 'p') {
       sendKeyboardRemoteCommand("Pause", "R 00 30 1");
       return true;
@@ -563,6 +580,161 @@ String htmlEscape(const String &text) {
   return escaped;
 }
 
+
+String jsEscape(const String &text) {
+  String escaped = "";
+
+  for (size_t i = 0; i < text.length(); i++) {
+    char character = text.charAt(i);
+
+    if (character == '\\' || character == '\'') {
+      escaped += '\\';
+      escaped += character;
+    } else if (character == '\n') {
+      escaped += "\\n";
+    } else {
+      escaped += character;
+    }
+  }
+
+  return escaped;
+}
+
+String urlEncode(const String &text) {
+  const char *hex = "0123456789ABCDEF";
+  String encoded = "";
+
+  for (size_t i = 0; i < text.length(); i++) {
+    char character = text.charAt(i);
+
+    if (isAlphaNumeric(character) || character == '-' || character == '_' || character == '.' || character == '~') {
+      encoded += character;
+    } else if (character == ' ') {
+      encoded += "%20";
+    } else {
+      encoded += '%';
+      encoded += hex[(character >> 4) & 0x0F];
+      encoded += hex[character & 0x0F];
+    }
+  }
+
+  return encoded;
+}
+
+String getDelimitedField(String &line) {
+  int separatorPosition = line.indexOf(';');
+
+  if (separatorPosition < 0) {
+    String field = line;
+    line = "";
+    field.trim();
+    return field;
+  }
+
+  String field = line.substring(0, separatorPosition);
+  line = line.substring(separatorPosition + 1);
+  field.trim();
+  return field;
+}
+
+String normalizeCommandWithRepeats(String command, String repeats) {
+  command.trim();
+  repeats.trim();
+
+  if (repeats.length() == 0) {
+    return command;
+  }
+
+  String probe = command;
+  String mode = nextToken(probe);
+  nextToken(probe);
+  nextToken(probe);
+  String existingRepeats = nextToken(probe);
+
+  if (existingRepeats.length() > 0 || probe.length() > 0) {
+    return command;
+  }
+
+  return command + " " + repeats;
+}
+
+bool setCustomCommandList(String csvText) {
+  CustomCommand parsedCommands[MAX_CUSTOM_COMMANDS];
+  uint8_t parsedCount = 0;
+  int startPosition = 0;
+
+  csvText.replace("\r", "");
+
+  while (startPosition <= csvText.length()) {
+    int endPosition = csvText.indexOf('\n', startPosition);
+
+    if (endPosition < 0) {
+      endPosition = csvText.length();
+    }
+
+    String line = csvText.substring(startPosition, endPosition);
+    line.trim();
+
+    if (line.length() > 0) {
+      if (line.indexOf(';') < 0) {
+        statusLine = "List rows need semicolons";
+        statusIsError = true;
+        return false;
+      }
+
+      if (parsedCount >= MAX_CUSTOM_COMMANDS) {
+        statusLine = "List max is " + String(MAX_CUSTOM_COMMANDS);
+        statusIsError = true;
+        return false;
+      }
+
+      String row = line;
+      String command = getDelimitedField(row);
+      String shortcut = getDelimitedField(row);
+      String description = getDelimitedField(row);
+      String repeats = getDelimitedField(row);
+
+      if (command.length() == 0 || description.length() == 0) {
+        statusLine = "List needs command and description";
+        statusIsError = true;
+        return false;
+      }
+
+      parsedCommands[parsedCount].command = normalizeCommandWithRepeats(command, repeats);
+      parsedCommands[parsedCount].shortcut = shortcut;
+      parsedCommands[parsedCount].description = description;
+      parsedCount++;
+    }
+
+    if (endPosition == csvText.length()) {
+      break;
+    }
+
+    startPosition = endPosition + 1;
+  }
+
+  for (uint8_t i = 0; i < parsedCount; i++) {
+    customCommands[i] = parsedCommands[i];
+  }
+
+  customCommandCount = parsedCount;
+  customCommandCsv = csvText;
+  statusLine = parsedCount == 0 ? "Custom list cleared" : "Custom list loaded: " + String(parsedCount);
+  statusIsError = false;
+  return true;
+}
+
+bool sendCustomShortcut(char key) {
+  for (uint8_t i = 0; i < customCommandCount; i++) {
+    if (customCommands[i].shortcut.length() == 1 && tolower(customCommands[i].shortcut.charAt(0)) == key) {
+      sendKeyboardRemoteCommand(customCommands[i].description.c_str(), customCommands[i].command.c_str());
+      return true;
+    }
+  }
+
+  return false;
+}
+
 void redirectToWebRemote() {
   server.sendHeader("Location", String("http://") + WiFi.softAPIP().toString() + "/", true);
   server.send(302, "text/plain", "Redirecting to Cardputer IR Remote");
@@ -590,8 +762,9 @@ void sendWebPage() {
     ".card{background:#1d1d1d;border-radius:14px;padding:14px;margin:12px 0;}"
     ".status{font-weight:700}.ok{color:#63d471}.error{color:#ff6b6b}"
     "form{display:grid;gap:10px}"
-    "input,button{font:inherit;border-radius:10px;border:0;padding:12px;}"
-    "input{background:#2b2b2b;color:#fff;}"
+    "input,textarea,button{font:inherit;border-radius:10px;border:0;padding:12px;}"
+    "input,textarea{background:#2b2b2b;color:#fff;}"
+    "textarea{min-height:130px;resize:vertical;}"
     "button{background:#00a6ff;color:#fff;font-weight:700;}"
     ".buttons{display:grid;grid-template-columns:1fr 1fr;gap:10px;}"
     ".buttons a{background:#333;color:#fff;text-align:center;text-decoration:none;border-radius:10px;padding:12px;}"
@@ -599,6 +772,7 @@ void sendWebPage() {
     ".command-list{display:grid;gap:8px;margin-top:12px;}"
     ".command-list a{display:grid;grid-template-columns:1fr auto;gap:8px;align-items:center;background:#2b2b2b;color:#fff;text-decoration:none;border-radius:10px;padding:10px;}"
     ".command-list span{color:#aaa;font-family:ui-monospace,SFMono-Regular,Consolas,monospace;font-size:.9rem;}"
+    ".custom-empty{color:#aaa;margin-top:10px;}"
     ".shortcut{display:inline-block;margin-left:6px;padding:2px 7px;border:1px solid #666;border-radius:6px;background:#111;color:#ddd;font-family:ui-monospace,SFMono-Regular,Consolas,monospace;font-size:.8rem;}"
     ".shortcut-help{display:grid;grid-template-columns:repeat(auto-fit,minmax(130px,1fr));gap:6px;margin-top:10px;color:#ccc;}"
     "small{color:#aaa;}"
@@ -625,10 +799,33 @@ void sendWebPage() {
     "<small>Formats: N &lt;address&gt; &lt;command&gt; [repeats], "
     "R &lt;address&gt; &lt;command&gt; [repeats], M &lt;32-bit-code&gt; [repeats]</small>"
     "</form></div>"
+    "<div class='card'><form action='/list' method='post'>"
+    "<label for='cmdlist'>Custom semicolon command list</label>"
+    "<textarea id='cmdlist' name='list' placeholder='R 00 0C;O;Power toggle;1&#10;R 00 10;+;Volume up;1'>";
+  page += htmlEscape(customCommandCsv);
+  page +=
+    "</textarea>"
+    "<button type='submit'>Replace keyboard/buttons</button>"
+    "<small>One row per button: IR command; keyboard letter; description; repeats. When this list has rows, its shortcuts replace the default keyboard remote shortcuts.</small>"
+    "</form></div>"
     "<div class='card'><h2>Quick buttons</h2><div class='buttons'>"
     "<a href='/send?cmd=R%2000%200C%201'>Philips Power <kbd class='shortcut'>O</kbd></a>"
     "<a href='/send?cmd=M%2020DF10EF'>NEC-MSB Power</a>"
     "</div><div class='shortcut-help'><small>Keyboard: Ctrl toggles Cardputer remote mode.</small><small>Web: shortcuts work when the command field is not focused.</small></div></div>"
+    "<div class='card'><details open><summary>Custom command buttons</summary><div class='command-list'>";
+  if (customCommandCount == 0) {
+    page += "<p class='custom-empty'>Paste a semicolon list above to create custom buttons.</p>";
+  } else {
+    for (uint8_t i = 0; i < customCommandCount; i++) {
+      page += "<a href='/send?cmd=" + urlEncode(customCommands[i].command) + "'><strong>" + htmlEscape(customCommands[i].description);
+      if (customCommands[i].shortcut.length() > 0) {
+        page += " <kbd class='shortcut'>" + htmlEscape(customCommands[i].shortcut) + "</kbd>";
+      }
+      page += "</strong><span>" + htmlEscape(customCommands[i].command) + "</span></a>";
+    }
+  }
+  page +=
+    "</div></details></div>"
     "<div class='card'><details open><summary>Main IR commands</summary><div class='command-list'>"
     "<a href='/send?cmd=R%2000%200C%201'><strong>Power toggle <kbd class='shortcut'>O</kbd></strong><span>RC6 0x00 0x0C</span></a>"
     "<a href='/send?cmd=R%2000%2010%201'><strong>Volume up <kbd class='shortcut'>+</kbd></strong><span>RC6 0x00 0x10</span></a>"
@@ -652,8 +849,36 @@ void sendWebPage() {
     "<a href='/send?cmd=R%2000%2030%201'><strong>Pause <kbd class='shortcut'>P</kbd></strong><span>RC6 0x00 0x30</span></a>"
     "<a href='/send?cmd=R%2000%2028%201'><strong>Fast-forward</strong><span>RC6 0x00 0x28</span></a>"
     "<a href='/send?cmd=R%2000%202B%201'><strong>Rewind</strong><span>RC6 0x00 0x2B</span></a>"
-    "</div></details></div>"
-    "<script>history.scrollRestoration='manual';const saveScroll=()=>sessionStorage.setItem('scrollY',scrollY);addEventListener('beforeunload',saveScroll);addEventListener('load',()=>{const y=sessionStorage.getItem('scrollY');if(y!==null)scrollTo(0,+y);});document.addEventListener('submit',saveScroll);document.addEventListener('click',e=>{const a=e.target.closest(\"a[href^='/send?cmd=']\");if(a)saveScroll();});const shortcuts={'o':'R 00 0C 1','q':'R 00 0C 1','+':'R 00 10 1','=':'R 00 10 1','-':'R 00 11 1','m':'R 00 0D 1','ArrowUp':'R 00 58 1','u':'R 00 58 1','ArrowDown':'R 00 59 1','d':'R 00 59 1','ArrowLeft':'R 00 5A 1','l':'R 00 5A 1','ArrowRight':'R 00 5B 1','r':'R 00 5B 1','Enter':'R 00 5C 1','h':'R 00 54 1','b':'R 00 0A 1','Backspace':'R 00 0A 1','s':'R 00 38 1','i':'R 00 0F 1','a':'R 00 8F 1','n':'R 00 76 1',' ':'R 00 2C 1','p':'R 00 30 1'};document.addEventListener('keydown',e=>{if(e.target.matches('input,textarea,select,button'))return;const cmd=shortcuts[e.key]||shortcuts[e.key.toLowerCase()];if(!cmd)return;e.preventDefault();saveScroll();location.href='/send?cmd='+encodeURIComponent(cmd);});</script>"
+    "</div></details></div>";
+
+  page += "<script>history.scrollRestoration='manual';const saveScroll=()=>sessionStorage.setItem('scrollY',scrollY);addEventListener('beforeunload',saveScroll);addEventListener('load',()=>{const y=sessionStorage.getItem('scrollY');if(y!==null)scrollTo(0,+y);});document.addEventListener('submit',saveScroll);document.addEventListener('click',e=>{const a=e.target.closest(\"a[href^='/send?cmd=']\");if(a)saveScroll();});const shortcuts=";
+
+  if (customCommandCount == 0) {
+    page += "{'o':'R 00 0C 1','q':'R 00 0C 1','+':'R 00 10 1','=':'R 00 10 1','-':'R 00 11 1','m':'R 00 0D 1','ArrowUp':'R 00 58 1','u':'R 00 58 1','ArrowDown':'R 00 59 1','d':'R 00 59 1','ArrowLeft':'R 00 5A 1','l':'R 00 5A 1','ArrowRight':'R 00 5B 1','r':'R 00 5B 1','Enter':'R 00 5C 1','h':'R 00 54 1','b':'R 00 0A 1','Backspace':'R 00 0A 1','s':'R 00 38 1','i':'R 00 0F 1','a':'R 00 8F 1','n':'R 00 76 1',' ':'R 00 2C 1','p':'R 00 30 1'}";
+  } else {
+    page += "{";
+    bool wroteShortcut = false;
+
+    for (uint8_t i = 0; i < customCommandCount; i++) {
+      if (customCommands[i].shortcut.length() == 0) {
+        continue;
+      }
+
+      if (wroteShortcut) {
+        page += ",";
+      }
+
+      String shortcutKey = customCommands[i].shortcut;
+      shortcutKey.toLowerCase();
+      page += "'" + jsEscape(shortcutKey) + "':'" + jsEscape(customCommands[i].command) + "'";
+      wroteShortcut = true;
+    }
+
+    page += "}";
+  }
+
+  page +=
+    ";document.addEventListener('keydown',e=>{if(e.target.matches('input,textarea,select,button'))return;const cmd=shortcuts[e.key]||shortcuts[e.key.toLowerCase()];if(!cmd)return;e.preventDefault();saveScroll();location.href='/send?cmd='+encodeURIComponent(cmd);});</script>"
     "</main></body></html>";
 
   server.send(200, "text/html", page);
@@ -669,7 +894,25 @@ void handleSendRequest() {
   }
 
   String command = server.arg("cmd");
-  processCommand(command);
+
+  if (command.indexOf(';') >= 0) {
+    setCustomCommandList(command);
+  } else {
+    processCommand(command);
+  }
+  drawScreen();
+  sendWebPage();
+}
+
+
+void handleListRequest() {
+  if (!server.hasArg("list")) {
+    statusLine = "Web: missing list";
+    statusIsError = true;
+  } else {
+    setCustomCommandList(server.arg("list"));
+  }
+
   drawScreen();
   sendWebPage();
 }
@@ -688,6 +931,7 @@ void setupWebRemote() {
   server.on("/connecttest.txt", HTTP_GET, redirectToWebRemote);
   server.on("/redirect", HTTP_GET, redirectToWebRemote);
   server.on("/send", HTTP_GET, handleSendRequest);
+  server.on("/list", HTTP_POST, handleListRequest);
   server.onNotFound(redirectToWebRemote);
   server.begin();
 
