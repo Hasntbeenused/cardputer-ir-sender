@@ -424,7 +424,34 @@ void sendRC6Command(String arguments) {
   Serial.println(statusLine);
 }
 
+String expandCompactCommand(String commandLine) {
+  commandLine.trim();
+
+  if (commandLine.length() < 2 || commandLine.indexOf(' ') >= 0 || commandLine.indexOf('\t') >= 0) {
+    return commandLine;
+  }
+
+  char mode = toupper(commandLine.charAt(0));
+  String payload = commandLine.substring(1);
+
+  if (mode == 'M' && payload.length() >= 1 && payload.length() <= 8) {
+    return String(mode) + " " + payload;
+  }
+
+  if (mode == 'R' && payload.length() >= 4 && payload.length() <= 5) {
+    return String(mode) + " " + payload.substring(0, 2) + " " + payload.substring(2);
+  }
+
+  if (mode == 'N' && payload.length() >= 3 && payload.length() <= 6) {
+    uint8_t addressDigits = payload.length() > 4 ? 4 : payload.length() - 2;
+    return String(mode) + " " + payload.substring(0, addressDigits) + " " + payload.substring(addressDigits);
+  }
+
+  return commandLine;
+}
+
 void processCommand(String commandLine) {
+  commandLine = expandCompactCommand(commandLine);
   commandLine.trim();
   commandLine.toUpperCase();
 
@@ -638,6 +665,7 @@ String getDelimitedField(String &line) {
 }
 
 String normalizeCommandWithRepeats(String command, String repeats) {
+  command = expandCompactCommand(command);
   command.trim();
   repeats.trim();
 
@@ -658,12 +686,33 @@ String normalizeCommandWithRepeats(String command, String repeats) {
   return command + " " + repeats;
 }
 
+bool isEscapedLineBreakAt(const String &text, int position) {
+  return position + 1 < text.length() && text.charAt(position) == '\\' && (text.charAt(position + 1) == 'n' || text.charAt(position + 1) == 'N');
+}
+
+String normalizeImportedListText(String text) {
+  text.replace("\r", "");
+
+  String normalized = "";
+
+  for (int i = 0; i < text.length(); i++) {
+    if (isEscapedLineBreakAt(text, i)) {
+      normalized += '\n';
+      i++;
+    } else {
+      normalized += text.charAt(i);
+    }
+  }
+
+  return normalized;
+}
+
 bool setCustomCommandList(String csvText) {
   CustomCommand parsedCommands[MAX_CUSTOM_COMMANDS];
   uint8_t parsedCount = 0;
   int startPosition = 0;
 
-  csvText.replace("\r", "");
+  csvText = normalizeImportedListText(csvText);
 
   while (startPosition <= csvText.length()) {
     int endPosition = csvText.indexOf('\n', startPosition);
@@ -676,6 +725,8 @@ bool setCustomCommandList(String csvText) {
     line.trim();
 
     if (line.length() > 0) {
+      line.replace("\t", ";");
+
       if (line.indexOf(';') < 0) {
         statusLine = "List rows need semicolons";
         statusIsError = true;
@@ -724,9 +775,18 @@ bool setCustomCommandList(String csvText) {
   return true;
 }
 
+String normalizeShortcutName(String shortcut) {
+  shortcut.trim();
+  shortcut.toLowerCase();
+  shortcut.replace(" ", "");
+  return shortcut;
+}
+
 bool sendCustomShortcut(char key) {
   for (uint8_t i = 0; i < customCommandCount; i++) {
-    if (customCommands[i].shortcut.length() == 1 && tolower(customCommands[i].shortcut.charAt(0)) == key) {
+    String shortcut = normalizeShortcutName(customCommands[i].shortcut);
+
+    if (shortcut.length() == 1 && tolower(shortcut.charAt(0)) == key) {
       sendKeyboardRemoteCommand(customCommands[i].description.c_str(), customCommands[i].command.c_str());
       return true;
     }
@@ -868,8 +928,7 @@ void sendWebPage() {
         page += ",";
       }
 
-      String shortcutKey = customCommands[i].shortcut;
-      shortcutKey.toLowerCase();
+      String shortcutKey = normalizeShortcutName(customCommands[i].shortcut);
       page += "'" + jsEscape(shortcutKey) + "':'" + jsEscape(customCommands[i].command) + "'";
       wroteShortcut = true;
     }
@@ -878,7 +937,7 @@ void sendWebPage() {
   }
 
   page +=
-    ";document.addEventListener('keydown',e=>{if(e.target.matches('input,textarea,select,button'))return;const cmd=shortcuts[e.key]||shortcuts[e.key.toLowerCase()];if(!cmd)return;e.preventDefault();saveScroll();location.href='/send?cmd='+encodeURIComponent(cmd);});</script>"
+    ";document.addEventListener('keydown',e=>{if(e.target.matches('input,textarea,select,button'))return;const key=e.key.length===1?e.key.toLowerCase():e.key;const combo=(e.ctrlKey?'ctrl+':'')+(e.altKey?'alt+':'')+(e.shiftKey?'shift+':'')+key;const cmd=shortcuts[combo]||shortcuts[key]||shortcuts[e.key]||shortcuts[e.key.toLowerCase()];if(!cmd)return;e.preventDefault();saveScroll();location.href='/send?cmd='+encodeURIComponent(cmd);});</script>"
     "</main></body></html>";
 
   server.send(200, "text/html", page);
